@@ -14,16 +14,22 @@ TransformedView tv;
 Vector vVales;
 
 void Setup(AlxWindow* w){
+	tv = TransformedView_Make(
+		(Vec2){ GetWidth(),GetHeight() },
+		(Vec2){ 0.0f,0.0f },
+		(Vec2){ 0.1f,0.1f },
+		(float)GetWidth() / (float)GetHeight()
+	);
+
 	fBTime = 0.0f;
 	nMaxIterations = 1;
 	fRotationSpeed = 1.0f;
 	fOffset = 4.0f;
-	tv = TransformedView_New((Vec2){ GetWidth(),GetHeight() });
 	vVales = Vector_New(sizeof(float));
 }
 void Update(AlxWindow* w){
 	TransformedView_HandlePanZoom(&tv,window.Strokes,GetMouse());
-	Rect r = TransformedView_Rect(&tv,GetScreenRect());
+	Rect r = TransformedView_ScreenWorldRect(&tv,GetScreenRect());
 
 	fBTime += w->ElapsedTime;
 
@@ -52,6 +58,10 @@ void Update(AlxWindow* w){
 	
 	Vector_Add(&vVales,&prev.y,0);
 	if(vVales.size>MAX_VALUES) Vector_PopTop(&vVales);
+
+	Vec2 ppS = TransformedView_WorldScreenPos(&tv,prev);
+	Vec2 ptS = TransformedView_WorldScreenPos(&tv,(Vec2){ fOffset,*(float*)Vector_Get(&vVales,0) });
+	Line_RenderX(WINDOW_STD_ARGS,ppS,ptS,WHITE,1.0f);
 
 	for(int i = 1;i<vVales.size;i++){
 		float v0 = *(float*)Vector_Get(&vVales,i-1);
