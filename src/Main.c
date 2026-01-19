@@ -1,17 +1,32 @@
 //#include "C:/Wichtig/System/Static/Library/WindowEngine1.0.h"
 #include "/home/codeleaded/System/Static/Library/WindowEngine1.0.h"
 #include "/home/codeleaded/System/Static/Library/Random.h"
-#include "/home/codeleaded/System/Static/Library/TransformedView.h"
+#include "/home/codeleaded/System/Static/Library/FS.h"
 
 #define MAX_VALUES	10000
 #define MAX_LENGTH	1000
+#define MAX_ITERMAX	100
 
-float fBTime;
-int nMaxIterations;
-float fRotationSpeed;
-float fOffset;
+float actime;
+float offset;
 TransformedView tv;
+
+FS fs;
 Vector vVales;
+
+
+Polar_Pair FS_WierdWave(int k){
+	const int n = k * 2 + 1;
+	const float a = n * actime;
+	const float r = (4.0f / (F32_PI * (float)n));
+	return (Polar_Pair){ r,a };
+}
+Polar_Pair FS_SquareWave(int k){
+	const float n = k % 2 == 0 ? 0.0f : (1.0f / (float)k);
+	const float a = k * actime;
+	const float r = (4.0f / F32_PI * (float)n);
+	return (Polar_Pair){ r,a };
+}
 
 void Setup(AlxWindow* w){
 	tv = TransformedView_Make(
@@ -21,58 +36,42 @@ void Setup(AlxWindow* w){
 		(float)GetWidth() / (float)GetHeight()
 	);
 
-	fBTime = 0.0f;
-	nMaxIterations = 1;
-	fRotationSpeed = 1.0f;
-	fOffset = 4.0f;
+	fs = FS_Func(MAX_ITERMAX,FS_SquareWave);
+
+	actime = 0.0f;
+	offset = 4.0f;
 	vVales = Vector_New(sizeof(float));
 }
 void Update(AlxWindow* w){
 	TransformedView_HandlePanZoom(&tv,window.Strokes,GetMouse());
 	Rect r = TransformedView_ScreenWorldRect(&tv,GetScreenRect());
 
-	fBTime += w->ElapsedTime;
-
-	if(Stroke(ALX_KEY_W).PRESSED) nMaxIterations++;
-	if(Stroke(ALX_KEY_S).PRESSED) nMaxIterations--;
+	actime += w->ElapsedTime;
 
 	Clear(BLACK);
 
-	Vec2 prev = { 0.0f,0.0f };
-	for(int i = 0;i<nMaxIterations;i++){
-		int n = i * 2 + 1;
-		
-		float a = n * fRotationSpeed * fBTime;
-		float r = (4.0f / (F32_PI * (float)n));
-		Vec2 target = Vec2_Add(prev,Vec2_Mulf(Vec2_OfAngle(a),r));
-
-		Vec2 pS = TransformedView_WorldScreenPos(&tv,prev);
-		Vec2 tS = TransformedView_WorldScreenPos(&tv,target);
-		Line_RenderX(WINDOW_STD_ARGS,pS,tS,WHITE,1.0f);
-
-		float rS = TransformedView_WorldScreenLX(&tv,r);
-		Circle_RenderXWire(WINDOW_STD_ARGS,pS,rS,WHITE,1.0f);
-
-		prev = target;
-	}
+	FS_Render(WINDOW_STD_ARGS,&tv,0.0f,0.0f,&fs,0.0f,actime);
 	
-	Vector_Add(&vVales,&prev.y,0);
-	if(vVales.size>MAX_VALUES) Vector_PopTop(&vVales);
+	const Vec2 out = FS_Calc(&fs,0.0,actime);
+	Vector_Add(&vVales,(float*)&out.y,0);
 
-	Vec2 ppS = TransformedView_WorldScreenPos(&tv,prev);
-	Vec2 ptS = TransformedView_WorldScreenPos(&tv,(Vec2){ fOffset,*(float*)Vector_Get(&vVales,0) });
+	if(vVales.size>MAX_VALUES)
+		Vector_PopTop(&vVales);
+
+	Vec2 ppS = TransformedView_WorldScreenPos(&tv,out);
+	Vec2 ptS = TransformedView_WorldScreenPos(&tv,(Vec2){ offset,*(float*)Vector_Get(&vVales,0) });
 	Line_RenderX(WINDOW_STD_ARGS,ppS,ptS,WHITE,1.0f);
 
 	for(int i = 1;i<vVales.size;i++){
 		float v0 = *(float*)Vector_Get(&vVales,i-1);
 		float v1 = *(float*)Vector_Get(&vVales,i);
 
-		Vec2 pS = TransformedView_WorldScreenPos(&tv,(Vec2){ fOffset + (float)(i-1	) / (float)MAX_LENGTH,v0 });
-		Vec2 tS = TransformedView_WorldScreenPos(&tv,(Vec2){ fOffset + (float)(i	) / (float)MAX_LENGTH,v1 });
+		Vec2 pS = TransformedView_WorldScreenPos(&tv,(Vec2){ offset + (float)(i-1) / (float)MAX_LENGTH,v0 });
+		Vec2 tS = TransformedView_WorldScreenPos(&tv,(Vec2){ offset + (float)(i) 	/ (float)MAX_LENGTH,v1 });
 		Line_RenderX(WINDOW_STD_ARGS,pS,tS,WHITE,1.0f);
 	}
 
-	String str = String_Format("MI:%d",nMaxIterations);
+	String str = String_Format("MI: %d",MAX_ITERMAX);
 	CStr_RenderSizeAlxFont(WINDOW_STD_ARGS,&window.AlxFont,str.Memory,str.size,0.0f,0.0f,WHITE);
 	String_Free(&str);
 }
